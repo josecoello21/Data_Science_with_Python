@@ -1,0 +1,130 @@
+---
+title: "Semana 3: Clasificador Naive de Bayes"
+author: "Jose Manuel Coello"
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+theme: 
+  dark: darkly
+jupyter: python3
+---
+
+## Objetivo
+
+En esta tarea trabajaremos con el conjunto de datos de "TV Show and Movies" utilizado en la semana uno para crear un clasificador utilizando el modelo Naive Bayes, en este caso utilizaré la variable `duration` para clasificar si el tipo de show es una película o una serie, para ello se aplicará una serie de tratamiento de datos y visualización de los mismos para luego aplicar el modelo con nuestra variable predictora (tiempo de duración) y clasificar el tipo de show (Movie o TV Show), el objetivo es que el clasificador aprenda del conjunto de datos para que luego tenga la capacidad de generalizar cuando se le suministren datos nuevos con los que no fue entrenado.
+
+## Carga de librerías o módulos
+
+Para lograr el objetivo deseado se utilizarán un conjunto de módulos en python la cual será la herramienta utilizada.
+
+```{python}
+import numpy as np
+import math
+import random
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+    f1_score,
+)
+```
+
+Cargamos el conjunto de datos
+
+```{python}
+df_movie = pd.read_csv('Movies_and_TV_Shows.csv')
+df_movie.head()
+```
+
+En este caso se quiere clasificar la variable `type` utilizando `duration` como variable predictora, sin embargo la variable `duration` no esta expresada en una única unidad de medida, esta variable para las *Movies* esta expresada en minutos y para los *TV Shows* viene dada en temporadas (seasons), para estandarizar la variable en una única unidad de medida vamos a trabajar con una variable que llamaremos `dura` la cual mide el tiempo en horas, vamos a suponer para efectos prácticos que todos los *TV Shows* por temporada tienen cinco capítulos y cada capítulo tiene una duración de cuarenta minutos, de esta manera tenemos cada uno de los registros medidos en minutos y luego procedemos a transformarlos a hora dividiendo por sesenta.
+
+```{python}
+cap, time = 5, 40
+hours = lambda x, y: (int(y.split(' ')[0]) * cap * time)/60 if x == 'TV Show' else int(y.split(' ')[0])/60
+
+dura = list(
+  map(lambda x, y: round(hours(x, y), 2), df_movie['type'], df_movie['duration'])
+  )
+
+df_movie = df_movie.assign(dura = dura)
+df_movie[['type', 'duration', 'dura']]
+```
+
+Una vez teniendo la variable `dura` en una unidad de medida estándar (horas) para todos los registros, procedemos a realizar un *scatter plot* donde se pueda apreciar que tan separados o que tan homogéneos son los tiempos de duración dependiendo del tipo de show (Movie o TV Show)
+
+```{python}
+fig, ax = plt.subplots()
+
+n = df_movie.shape[0]
+x = list(range(1, n+1))
+y = list(df_movie['dura'])
+c = [1 if t == 'Movie' else 2 for t in df_movie['type']]
+classes = list(df_movie['type'].unique())
+colors = ListedColormap(['red', 'blue'])
+
+scatter = ax.scatter(x, y, c = c, cmap = colors, alpha = 0.1)
+
+plt.legend(handles = scatter.legend_elements()[0], labels = classes)
+plt.show()
+```
+
+Se puede decir que se tiene una separación lógica entre la duración de un *TV Show* y una *Movie* ya que los *TV Shows* vienen dados por temporadas donde cada temporada estamos asumiendo que esta compuesta por cinco capítulos de duración cuarenta minutos. Ya teniedo nuestra variable predictora estandarizada en una unidad de tiempo procedemos a realizar la partición de los datos donde tendremos un 70% de los datos para entrenar el modelo y un 30% de los datos para probar el nivel de predictibilidad del modelo. Las categorías de nuestra variable respuesta en este caso serán `Movies = 1` y `TV Show = 2`
+
+```{python}
+pred_var = np.array(df_movie['dura']).reshape(-1,1)
+response = np.array(c).reshape(-1,1)
+
+x_train, x_test, y_train, y_test = train_test_split(
+  pred_var, response, test_size = 0.3, random_state = 125
+  )
+
+print("x_train:", x_train)
+print("x_test:", x_test)
+print("y_train:", y_train)
+print("y_test:", y_test)
+```
+
+Procedemos a construir el clasificador Naive de Bayes llamando la funcion `GaussianNB()` del módulo sklearn de python
+
+```{python #| warning: false}
+# Build a Gaussian Classifier
+model = GaussianNB()
+
+# Model training
+model.fit(x_train, y_train.ravel())
+
+# Predict Output
+predicted = model.predict([x_test[6]])
+
+print(y_test)
+print("Actual Value:", y_test[6])
+print("Predicted Value:", predicted[0])
+```
+
+Procedemos a verificar algunas métricas que nos indican el nivel de predictibilidad del modelo como lo son el `acurracy` que nos indica la proporción de instancias predichas de manera correcta entre el total de instancias predichas y el `F score` este puede ser interpretado como una media armónica de la precisión y el recall, donde el `F score` alcanza su mejor valor en 1 y su peor valor en 0. La relativa contribución de precisión y recall a el `F score` son iguales, la formula del `F score` es `F1 = 2 * (precision * recall) / (precision + recall)`, donde la precisión representa el porcentaje de registros que fue clasificado de manera correcta a la clase "positiva" `precision = verdaderos positivos / (verdaderos positivos + falsos positivos)` mientras que el recall o exahustividad indica que porcentaje de registros que pertenecen a la clase "positiva" que fue clasificado correctamente `recall = verdaderos positivos / (verdaderos positivos + falsos negativos)`
+
+```{python}
+y_pred = model.predict(x_test)
+accuray = accuracy_score(y_pred, y_test)
+f1 = f1_score(y_pred, y_test, average = "weighted")
+
+print("Accuracy:", accuray)
+print("F1 Score:", f1)
+```
+
+Por último observamos la matriz de confusión, esta es una matriz cuadrada en la cual se exponen del lado izquierdo (filas) las verdaderas clases y del lado derecho (columnas) las clases predichas por el modelo, la diagonal principal de la matriz contiene las clases que fueron clasificadas correctamente (verdaderos negativos y verdaderos positivos) mientras que en este caso por ser una matriz *2 x 2* la diagonal secundaria contiene las clases clasificadas de forma errónea (falsos positivos y falsos negativos).
+
+```{python}
+cm = confusion_matrix(y_test, y_pred, labels = [1,2])
+disp = ConfusionMatrixDisplay(confusion_matrix = cm, display_labels = classes)
+disp.plot()
+plt.show()
+```
