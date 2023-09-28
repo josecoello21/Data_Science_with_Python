@@ -1,0 +1,449 @@
+---
+title: "Semana 4: Reglas de Asociación"
+author: "Jose Manuel Coello"
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+theme: 
+  dark: darkly
+jupyter: python3
+---
+
+## Objetivo
+
+En esta tarea trabajaremos con el conjunto de datos **"TV Show and Movies"** para crear un modelo de reglas de asociación, para ello inicialmente utilizaré la implementación del algoritmo **a-priori**, con la particularidad que en primera instancia llevaré a cabo el desarrollo del algoritmo por cuenta propia sin la utilización de algún modulo de python con el algoritmo ya desarrollado, esto con la intención de comprender bien el funcionamiento del algoritmo, luego utilizaré el modulo de python `efficient_apriori` el cual contiene la función `apriori` y haré una comparación de los resultados, si ambas salidas son iguales (es lo que espero) significa que capté como funciona el algoritmo **a-priori** para crear reglas de asociación.
+
+## Descripción de los datos y del algoritmo
+
+El conjunto de datos cuenta con una variable llamada `listed_in` la cual será utilizada de la siguiente manera, cada registro en la variable **listed_in** representa un conjunto de transacciones de compra de películas, de forma general el algoritmo a priori consiste en lo siguiente, supongamos que tenemos información de la compra de los siguientes items en un almacén:
+
+| records | items                          |
+|---------|--------------------------------|
+| 1       | Milk, Eggs, Bread, Butter.     |
+| 2       | Milk, Butter, Eggs, Ketchup.   |
+| 3       | Bread, Butter, Ketchup.        |
+| 4       | Milk, Bread, Butter.           |
+| 5       | Bread, Butter, Cookies.        |
+| 6       | Milk, Bread, Butter, Cookies.  |
+| 7       | Milk, Cookies.                 |
+| 8       | Milk, Bread, Butter.           |
+| 9       | Bread, Butter, Eggs, Cookies.  |
+| 10      | Milk, Butter, Bread.           |
+| 11      | Milk, Bread, Butter.           |
+| 12      | Milk, Bread, Cookies, Ketchup. |
+
+Configuramos un nivel de soporte en 4/12 = 0.33 y el nivel de confianza en 8/12 = 0.66.
+
+Procedemos a contar la frecuencia de cada item en el dataset y validamos cuales cumplen con un soporte mayor o igual al nivel de soporte establecido.
+
+| 1 item set | frequency | support | final 1 item set |
+|------------|-----------|---------|------------------|
+| Milk       | 9         | 0.75    | Milk             |
+| Bread      | 10        | 0.83    | Bread            |
+| Butter     | 10        | 0.83    | Butter           |
+| Eggs       | 3         | 0.25    |                  |
+| Ketchup    | 3         | 0.25    |                  |
+| Cookies    | 5         | 0.41    | Cookies          |
+
+Con los items resultantes procedemos a crear combinaciones de dos items, para luego repetir el proceso del conteo de frecuencia de cada combinación de dos items en el dataset y validamos cuales tienen un soporte mayor o igual al soporte establecido.
+
+| 2 item set      | frequency | support | final 2 item set |
+|-----------------|-----------|---------|------------------|
+| Milk, Bread     | 7         | 0.58    | Milk, Bread      |
+| Milk, Butter    | 7         | 0.58    | Milk, Butter     |
+| Milk, Cookies   | 3         | 0.25    |                  |
+| Bread, Butter   | 9         | 0.75    | Bread, Butter    |
+| Bread, Cookies  | 4         | 0.33    | Bread, Cookies   |
+| Butter, Cookies | 3         | 0.25    |                  |
+
+Con el numero de items resultantes, repetimos el proceso de crear combinaciones en este caso de tres items, para luego contar la frecuencia de cada combinación de tamaño tres en el dataset, finalmente validamos cuales tienen un soporte mayor o igual al soporte establecido.
+
+| 3 item set             | frequency | support | final 3 item set    |
+|------------------------|-----------|---------|---------------------|
+| Milk, Bread, Butter    | 6         | 0.5     | Milk, Bread, Butter |
+| Milk, Bread, Cookies   | 2         | 0.16    |                     |
+| Milk, Butter, Cookies  | 1         | 0.08    |                     |
+| Bread, Butter, Cookies | 3         | 0.25    |                     |
+
+Finalmente solo tenemos tres items en nuestra combinación final que cumple con un soporte mayor o igual al soporte establecido, ya no podemos crear combinaciones mayores a tres ya que solo contamos con tres items, por lo tanto procedemos a crear sub conjuntos no vacios de la combinación resultante Milk, Bread, Butter para crear las reglas.
+
+Sub conjuntos no vacios de Milk, Bread, Butter son: \[(Milk), (Bread), (Butter), (Milk, Bread), (Milk, Butter), (Butter, Bread)\]
+
+*Reglas:*
+
+1.  Milk -\> Butter, Bread {sup = 0,5, con = 0,66}
+2.  Bread -\> Milk, Butter {sup = 0,5, con = 0,6}
+3.  Butter -\> Milk, Bread {sup = 0,5, con = 0,6}
+4.  Milk, Bread -\> Butter {sup = 0,5, con = 0,85}
+5.  Milk, Butter -\> Bread {sup = 0,5, con = 0,85}
+6.  Butter, Bread -\> Milk {sup = 0,5, con = 0,66}
+
+## Pasos a seguir para el desarrollo del algoritmo A-priori
+
+Para el desarrollo del algoritmo se crearán un conjunto de funciones donde cada una de ellas realizará una tarea en especifico que se necesitan para el algoritmo final.
+
+Se procede a crear las siguientes funciones:
+
+1.  `n_item`: Función para crear combinaciones de items. Esta función tendrá los siguientes argumentos (data, my_dict, n), donde data será representado como una lista, cada elemento de la lista representa una transacción de películas, my_dict se espera que sea un diccionario donde las claves del diccionario serán combinaciones de items y los valores serán la frecuencia de esas combinaciones en el dataset original, finalmente el argumento n será un entero que representa el tamaño de las combinaciones de items a generar. Esta función retorna un diccionario donde las claves seran combinaciones de items de tamaño n y los valores serán las frecuencias de estas combinaciones en el dataset.
+
+2.  `n_item_final`: Función que valida cuales items tienen un nivel de soporte mayor o igual al nivel de soporte establecido. Esta función tendrá los siguientes argumentos, (div, my_dict, support), donde div será un entero que representa el número de registros del dataset original, my_dict será un diccionario sobre el cual se quiere validar los items con un nivel de soporte mayor o igual al soporte establecido y finalmente support que representa el nivel de soporte establecido. Esta función retorna un diccionario, donde las claves serán las combinaciones de items y los valores la frecuencia de esas combinaciones en el dataset original, los items finales tienen un nivel de soporte mayor o igual al nivel de soporte establecido.
+
+3.  `rules`: Función para crear las reglas de asociación dependiendo del nivel de soporte y nivel de confianza establecido. Esta función toma los siguientes argumentos (min_supp, min_conf, freq_final_items, n_record), donde min_supp y min_conf serán los niveles de soporte y confianza establecidos, freq_final_items será una lista que contiene los distintos diccionarios con las combinaciones de items de tamaño n, finalmente n_record que representa la longitud del número de records del dataset original. Esta función retorna una lista donde cada elemento será una tupla que contiene una combinación de item de tamaño n, el soporte de dicha combinación, la confianza de la combinación y la regla asociada a la combinación.
+
+4.  `nice_print`: Función para imprimir los resultados de las reglas de asociación en un formato agradable y legible para el usuario final, esta función toma como argumento una lista que contiene las reglas de asociación finales generadas por la función `rules` e imprime el resultado de una manera legible.
+
+5.  `a_priori`: Función que realiza todo el proceso del algoritmo a-priori, esta función es una combinación de las tres funciones anteriores `n_item`, `n_item_final`, `rules`. Esta función toma como argumentos (data, min_support, min_confidence) donde data será representado como una lista, cada elemento de la lista representa una transacción de películas, luego min_supp y min_conf serán los niveles de soporte y confianza establecidos. La función retorna una lista donde cada elemento será una tupla que contiene una combinación de item de tamaño n, el soporte de dicha combinación, la confianza de la combinación y la regla asociada a la combinación.
+
+```{python}
+# function to read a csv file
+def read_csv_file(csv_file):
+  """
+  Input: 
+    csv_file = path from the csv file to read
+  Output: 
+    Read a csv file and return a nested list where each element is a row
+  """
+  table = []
+  with open(csv_file, 'r', newline = '') as csvfile:
+    csv_object = csv.reader(csvfile, skipinitialspace = True)
+
+    for row in csv_object:
+      table.append(row)
+
+  return table
+
+# function to create item combinations 
+def n_item(data, my_dict, n = 1):
+  """
+  Create n combinations of items
+  Input: 
+    data = list where each element of the list is a set of items
+    my_dict = a dictionary where each key is a set of n items and values are
+              the frequency of each key in the dataset
+    n = size of grouping of each combination
+  Output:
+    Return a dictionary where each key is a set combination of n items and
+    values are the frequency of each key in the dataset
+  """
+  if n == 1:
+    freq_n_item = {}
+    
+    for item in data:
+      genre = item.rsplit(',')
+      genre = [i.strip() for i in genre]
+      
+      for gen in genre:
+        if gen not in freq_n_item:
+          freq_n_item[gen] = 1
+        else:
+          freq_n_item[gen] += 1
+  else:
+    sub = []
+    items = set([i for k in my_dict.keys() for i in k.split(', ')])
+    for comb in combinations(items, n):
+      comb = list(comb)
+      comb.sort()
+      string = ''
+      for c in comb:
+        string += ''.join(c + ', ')
+      string = string[:len(string) - 2]
+      sub.append(string)
+    
+    freq_n_item = {key: 0 for key in sub}
+    for comb in sub:
+      for item in data:
+        if set(comb.split(', ')).issubset(set(item.split(', '))):
+          freq_n_item[comb] += 1
+  
+  return freq_n_item
+
+# function to check which items have a frequency same or greater than min support 
+def n_item_final(div, my_dict, support):
+  """
+  Filter only items with a frequency greater than or equal to the set support
+  Input:
+    div = dataset length
+    my_dict = a dictionary where each key is an item combination of size n and
+              values are the frequency of each combination in the dataset
+    support = minimum set support
+  Output:
+    Return a dictionary with only key item combinations greater than or equal to
+    the set support
+  """
+  return {k: v for k, v in my_dict.items() if my_dict[k]/div >= support }
+
+# function to create the rules
+def rules(min_supp, min_conf, freq_final_items, n_record):
+  """
+  Create associations of items depending of the minimum set support and minimum set confidence
+  Input:
+    min_supp = minimum level of set support
+    min_conf = minimum level of set confidence
+    freq_final_items = a dictionary where each key is an item combination of n size 
+                       and values are the frequency of each key in the dataset
+    n_record = dataset length
+  Output:
+    Return a list where each element is a tuple containing an item combination
+    of n size, support of the combination, confidence of the combination and 
+    rule associated to that combination
+  """
+  # items to create non-empty subsets from items
+  keys = list(freq_final_items[-1].keys())
+  
+  freq_dict = {}
+  for d in freq_final_items[:len(freq_final_items)-1]:
+    freq_dict.update(d)
+  
+  # creating rules from final items
+  rule = []
+  
+  for k in keys:
+    n = k.split(', ')
+    for i in range(1, len(n)):
+      comb = list(combinations(n, i))
+      comb = [', '.join(ele) for ele in comb]
+      for item in comb:
+        support = freq_final_items[-1][k] / n_record
+        confidence = freq_final_items[-1][k] / freq_dict[item]
+        if support >= min_supp and confidence >= min_conf:
+          diff = set(n).difference(set(item.split(', ')))
+          complement = ''
+          for i in diff:
+            complement += ''.join(i + ', ')
+          rule.append( (item, round(support, 4), round(confidence, 4), complement[:len(complement)-2]) )
+  return rule
+
+# function to print the results in a nice format 
+def nice_print(rules, n_just1 = 11, n_just2 = 3):
+  """
+  Print the result in a nice visual way for people
+  Input:
+    rules = a list where each element is a tuple that contain an item combination,
+    support of the item combination, confidence of the item combination and rule 
+    associated to the item combination
+    n_just1, n_just2 = are constants that represent white space between columns
+  """
+  n_str = max([len(k[0]) for k in rules]) + 1
+  n1, n2 = n_just1, n_just2
+  count = 1
+  for k in rules:
+    if count == 1:
+      print('n'.ljust(n2), 'items'.ljust(n_str), 'support'.ljust(n1), 'confidence'.ljust(n1), 'rule')
+    
+    c = str(count).ljust(n2)
+    item = k[0].ljust(n_str)
+    supp = str(k[1]).ljust(n1)
+    confidence = str(k[2]).ljust(n1)
+    rule = k[3]
+    print(c, item, supp, confidence, rule)
+    count += 1
+
+# A-priori algorithm
+def a_priori(data, min_support, min_confidence):
+  """
+  Function to do the A-priori algorithm and return a list with the item combinations and their 
+  rules, level confidence and level support
+  Input:
+    data = a list where each element is a set of transactions
+    min_supp = minimum level of set support
+    min_conf = minimum level of set confidence
+  Output:
+    Return a list where each element is a tuple containing an item combination
+    of n size, support of the combination, confidence of the combination and 
+    rule associated to that combination
+  """
+  n_dict = []
+  count = 1
+  n_records = len(data)
+  items_dict = n_item(data = data, my_dict = None, n = count)
+  items_final = n_item_final(div = n_records, my_dict = items_dict, support = min_support)
+  unique_items = set([i for k in items_final.keys() for i in k.split(', ')])
+  reglas = []
+  
+  while len(unique_items) >= count:
+    n_dict.append(items_final)
+    count += 1
+    items_dict = n_item(data = data, my_dict = n_dict[count - 2], n = count)
+    items_final = n_item_final(div = n_records, my_dict = items_dict, support = min_support)
+    reglas.extend(rules(min_supp = min_support, min_conf = min_confidence, freq_final_items = n_dict, n_record = n_records))
+    unique_items = set([i for k in items_final.keys() for i in k.split(', ')])
+  
+  nice_print(reglas)
+  return reglas
+```
+
+## Paso a paso de la corrida del algoritmo A-priori
+
+Una vez teniendo las funciones para realizar el proceso que conlleva el algoritmo a-priori, procederé primero a correr el algoritmo de manera "manual", esto con la finalidad de "ilustrar" cada paso anteriormente descrito. luego utilizaré la función que realiza el algoritmo de manera automática y realizaré la comparación con la salida que arroja el algoritmo en el modulo de python `efficient_apriori`.
+
+**1. Paso**: carga de datos y configuración de los niveles de soporte y confianza.
+
+Primero procedemos a cargar los modulos a utilizar y configuramos los niveles de confiaza y soporte requeridos para la obtención de reglas, luego cargamos los datos y mostramos la estructura de los datos viendo los cinco primeros registros.
+
+```{python}
+# modulos
+import csv
+from efficient_apriori import apriori
+from fpgrowth_py import fpgrowth
+from itertools import combinations
+
+# configuracion min support y min confidence
+min_support = 0.02
+min_confidence = 0.2
+
+# lectura del data set
+my_data = read_csv_file('Movies_and_TV_Shows.csv')
+transaction = [item[10] for item in my_data]
+transaction[:5]
+```
+
+**2. Paso**: conteo de las frecuencias de cada item (género de películas) en el data set.
+
+Se realiza el conteo de cada item en el data set y luego filtramos solo aquellos items con un nivel de soporte mayor o igual al nivel de soporte establecido.
+
+```{python}
+# one item -> un genero
+nrows = len(transaction)
+freq_one_item = n_item(data = transaction, my_dict = None, n = 1)
+freq_one_final = n_item_final(div = nrows, my_dict = freq_one_item, support = min_support)
+
+count = 1
+for k, v in freq_one_final.items():
+  print(count, k, v)
+  count += 1
+```
+
+**3. Paso**: creación de combinaciones de tamaño "n" y conteo de frecuencias de dichas combinaciones en el data set.
+
+Tenemos 18 items que tienen un nivel de soporte mayor o igual al establecido (0.02), por lo tanto deberíamos obtener un total de (18x17)/2 = 153 combinaciones de items de tamaño dos, luego verificamos cuantos tienen un nivel de soporte mayor o igual a 0.02
+
+```{python}
+# dos generos
+freq_two_item = n_item(data = transaction, my_dict = freq_one_final, n = 2)
+freq_two_final = n_item_final(div = nrows, my_dict = freq_two_item, support = min_support)
+
+items_comb_size_2 = len(set([k for i in freq_two_final.keys() for k in i.split(', ')]))
+print('nro de combinaciones de tamaño dos:', len(freq_two_item))
+print('nro de comb n = 2 con supp >= 0.02:', len(freq_two_final))
+print('nro de items unicos de comb de tamaño dos:', items_comb_size_2)
+```
+
+De las 153 combinaciones de tamaño dos solo 19 tienen un nivel de soporte mayor o igual a 0.02, procedemos a crear combinaciones de tamaño 3 con los items únicos resultantes del paso anterior (13). En este caso deberíamos obtener un total de (13x12x11)/(3x2) = 286 combinaciones de items de tamaño tres, luego filtrar los que cumplan con el nivel de soporte establecido.
+
+```{python}
+# tres generos
+freq_three_item = n_item(data = transaction, my_dict = freq_two_final, n = 3)
+freq_three_final = n_item_final(div = nrows, my_dict = freq_three_item, support = min_support)
+
+items_comb_size_3 = len(set([k for i in freq_three_final.keys() for k in i.split(', ')]))
+print('nro de combinaciones de tamaño tres:', len(freq_three_item))
+print('nro de comb n = 3 con supp >= 0.02:', len(freq_three_final))
+print('nro de items unicos de comb de tamaño tres:', items_comb_size_3)
+```
+
+De 286 combinaciones de tamaño tres solo 10 tienen un nivel de soporte mayor o igual a 0.02, procedemos a crear combinaciones de tamaño 4 con los items únicos resultantes del paso anterior (5). En este caso deberíamos obtener un total de (5x4x3x2)/(4x3x2) = 5 combinaciones de items de tamaño cuatro, luego filtrar los que cumplan con el nivel de soporte establecido.
+
+```{python}
+# cuatro generos
+freq_four_item = n_item(data = transaction, my_dict = freq_three_final, n = 4)
+freq_four_final = n_item_final(div = nrows, my_dict = freq_four_item, support = min_support)
+
+items_comb_size_4 = len(set([k for i in freq_four_final.keys() for k in i.split(', ')]))
+print('nro de combinaciones de tamaño cuatro:', len(freq_four_item))
+print('nro de comb n = 4 con supp >= 0.02:', len(freq_four_final))
+print('nro de items unicos de comb de tamaño cuatro:', items_comb_size_4)
+```
+
+Por último solo tenemos cinco combinaciones de tamaño cuatro con un soporte mayor o igual al establecido, de estas combinaciones solo tenemos cinco items únicos, procedemos a crear combinaciones de tamaño 5, en este caso solo tendremos una combinación.
+
+```{python}
+# cinco generos
+freq_five_item = n_item(data = transaction, my_dict = freq_four_final, n = 5)
+freq_five_final = n_item_final(div = nrows, my_dict = freq_five_item, support = min_support)
+print(freq_five_final)
+```
+
+**4. Paso**: creación de las reglas para cada una de las combinaciones.
+
+Creamos sub-conjuntos no vacios de la combinación final (Arts, Comedy, Entertainment, Special Interest, and Culture) y generamos las reglas en función de los niveles de soporte y confianza.
+
+```{python}
+# resultados
+n_dict = [freq_one_final, freq_two_final, freq_three_final, freq_four_final, freq_five_final]
+count = 1
+for i in range(2, len(n_dict)):
+  print('')
+  print('Nro maximo de items:', count)
+  rule = rules(min_supp=min_support, min_conf=min_confidence, freq_final_items=n_dict[:i], n_record=nrows)
+  nice_print(rule)
+  count += 1
+```
+
+## Corrida automática del algoritmo A-priori
+
+Estos mismos resultados pueden ser obtenidos de manera automática sin tener que ir paso a paso utilizando la función desarrollada anteriormente que llamé `a_priori`, corremos nuevamente el algoritmo y comparamos los resultados con la salida del modulo de python `efficient_apriori`.
+
+```{python}
+# resultados aplicando el algoritmo a priori programado 'a pedal'
+result = a_priori(data=transaction, min_support=min_support, min_confidence=min_confidence)
+```
+
+Procedo a utilizar la función `apriori` del modulo `efficient_apriori` y comparar ambas ambas salidas.
+
+```{python}
+# resultado aplicando el modulo efficient_apriori
+transaction2 = [i.split(', ') for i in transaction]
+itemsets, rul = apriori(transaction2, min_support=min_support, min_confidence=min_confidence)
+
+count = 1
+for r in rul:
+  print(count, r)
+  count += 1
+```
+
+Se observa que se obtiene la misma cantidad de reglas en diferente orden, pero las reglas son las mismas coincidiendo cada soporte y confianza de las reglas con los resultados anteriores. Con un nivel de soporte de 0.02 se obtiene un conjunto grande de reglas (177), aumentamos el soporte a 0.05 de esta manera obtendremos una mejor comparación.
+
+```{python}
+min_support = 0.05
+
+# resultados aplicando el algoritmo a priori programado 'a pedal'
+print('Algoritmo Apriori desarrollado por mí')
+result = a_priori(data=transaction, min_support=min_support, min_confidence=min_confidence)
+
+# resultado aplicando el modulo efficient_apriori
+itemsets, rul = apriori(transaction2, min_support=min_support, min_confidence=min_confidence)
+
+print('')
+print('Algoritmo Apriori modulo efficient_apriori')
+count = 1
+for r in rul:
+  print(count, r)
+  count += 1
+```
+
+Para concluir esta vez aplicaré el algoritmo `fpgrowth` del modulo `fpgrowth_py`.
+
+```{python}
+# resultados aplicando el algoritmo fpgrowth
+freqItemSet, reglas = fpgrowth(transaction2, minSupRatio=min_support, minConf=min_confidence)
+
+count = 1
+for r in reglas:
+  print(count, r)
+  count += 1
+```
+
+En los tres casos se obtienen los mismos resultados, como reflexión final el objetivo de programar por cuenta propia distintos algoritmos ayuda a la comprensión de que realmente hace o como funciona el algoritmo, herramientas como R o Python ya estos algoritmos estan desarrollados, sin embargo siempre es bueno saber que hay detras de cada uno de ellos para así cuando se utilicen podamos interpretar con base los resultados finales.
+
+Con respecto a la pregunta ¿Si una persona compra una película de drama cual recomendar? Es curioso debido a que el género drama es el que mayor frecuencia tiene en el dataset en cada una de las transacciones con un total de 3687 apariciones, sin embargo, cuando realizamos las combinaciones por items y validamos los niveles de soporte y confianza, el género drama solo lo tenemos en las combinaciones de tamaño dos, para las combinaciones mayores a dos el género drama esta incluido en combinaciones con un soporte y una confianza por debajo a la establecida, por ende no se incluye en las reglas con combinaciones mayores a dos.
+
+Y en combinaciones de tamaño dos el género drama no esta incluido como tal en una regla debido a que no supero los niveles de confianza y soporte, pero si se encuentra en algunas recomendaciones por ejemplo con un soporte de 0.05 y una confianza de 0.2 se recomienda drama si se compran los siguientes géneros:
+
+```{python}
+r = []
+for i in result:
+  if i[3] == 'Drama':
+    r.append(i)
+nice_print(r)
+```
