@@ -1,0 +1,194 @@
+---
+title: "Semana 6: Textmining"
+author: "Jose Manuel Coello"
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+theme: 
+  dark: darkly
+jupyter: python3
+---
+
+## Objetivo
+
+Esta tarea consiste en trabajar preprocesamiento de texto utilizando técnicas de Text-Mining sobre textos en español de Cervantes, trabajaré principalmente con dos textos Capítulo I y Capítulo II del escrito "El ingenioso hidalgo don Quijote de la Mancha" que puede ser hallado en el siguiente [link](https://www.cervantesvirtual.com/obra-visor/el-ingenioso-hidalgo-don-quijote-de-la-mancha--0/html/fef04e52-82b1-11df-acc7-002185ce6064_2.html#I_5). Esta tarea tiene un alcance de lo que sería las etapas de recolección de datos mediante web scraping utilizando python y la estructuración de los datos, no entraré en detalle con la fase de modelado (modelo de clasificación o asociación).
+
+## Pasos a seguir para la obtención y estructuración de los datos
+
+Para la recolección de los datos se utilizarán principalmente los modulos `BeautifulSoup` y `re` para llevar a cabo el proceso de web scraping donde se extraerá el texto del Capítulo I y Capítulo II que se encuentran en el link anteriormente dicho y se guardarán ambos textos en dos variables `text1` y `text2` para luego elaborar el proceso de estructuración de datos.
+
+En la estructuración de los datos se crearán un conjunto de funciones donde cada una de ellas realizará una tarea en específico que se necesitan para el resultado final.
+
+Se procede a crear las siguientes funciones:
+
+1.  `my_token`: Función que elimina cualquier caracter especial en el texto y cualquier conector o palabras que no aportan para el resultado final. Esta función toma como argumentos (text, pattern, remove) donde text es un string o cadena de texto, pattern una expresión regular para eliminar caracteres no deseados y remove es una lista que contiene palabras o cenectores que no se desean en el texto. Esta función retorna un diccionario donde las claves son el total de palabras contenidas en el texto y los valores serán el conteo de la frecuencia de las palabras, a parte retorna un entero que representa el total de palabras finales contenidas en el texto.
+
+2.  `all_words`: Función que fusiona dos diccionarios sumando los valores con claves en común en ambos diccionarios y mantiene los valores de las claves no comunes en los dos diccionarios. Esta función toma como argumentos (dict1, dict2) donde ambos son diccionarios que contienen las frecuencias de las palabras en los textos que se desea analizar. Esta función retorna un diccionario con el conteo de las frecuencias de las palabras en ambos textos.
+
+3.  `common_words`: Función para obtener frecuencias absolutas y relativas para cada palabra contenida en una cadena de texto. Esta función toma como argumento (dic, text, n, pattern), donde dic es un diccionario con el conteo de frecuencias de palabras, text es la cadena de texto que se desea analizar, n es un entero que representa el top de las "n" palabras más frecuentes en el texto, pattern es una expresión regular para eliminar caracteres no deseados. Esta función retorna una lista anidada de longitud "n" donde cada elemento de la lista es una lista que contiene: 1- la palabra, 2- frecuencia absoluta y 3- frecuencia relativa en el texto.
+
+4.  `nice_print`: Función para imprimir los resultados de `common_words` en un formato agradable y legible para el usuario final, esta función toma como argumento el resultado arrojado por la función `common_words`.
+
+```{python}
+# function to delete any special characters and count tokens
+def my_token(text, pattern = '[^A-Za-z0-9 ]+', remove = ['el','la','los']):
+  word_lst = re.sub(pattern, '', text).split(' ')
+  word_lst = [word for word in word_lst if word not in remove]
+  count_word = dict()
+  for w in word_lst:
+    count_word[w] = count_word.get(w, 0) + 1
+  return count_word, len(word_lst)
+
+# function to get absolute frequencies and relative frequencies for any word 
+def common_words(dic, text, n = 10, pattern = '[^A-Za-z0-9]+'):
+  word_dict = list(dic.items())
+  word_dict.sort(reverse = True, key = lambda x: x[1])
+  div = len(re.sub(pattern, '', text))
+  word_dict = [list(tpl) + [round(tpl[1]/div, 4)] for tpl in word_dict[:n]]
+  return word_dict
+
+# function to print in a nice format common_words'result
+def nice_print(lst):
+  n_str = max([len(k[0]) for k in lst]) + 1
+  n1,n2 = 5,8
+  count = 1
+  for k in lst:
+    if count == 1:
+      print('N'.ljust(n1), 'Word'.ljust(n_str), 'Abs_freq'.ljust(n2), 'Relative_freq')
+    c = str(count).ljust(n1)
+    word = k[0].ljust(n_str)
+    abs_freq = str(k[1]).ljust(n2)
+    rel_freq = k[2]
+    print(c, word, abs_freq, rel_freq)
+    count += 1
+
+# function to merge two dictionaries and sum values from equal keys
+def all_words(dict1, dict2):
+  # keys contained only in dict1
+  only_dict1 = set(dict1.keys()).difference(set(dict2.keys()))
+  # keys contained only in dict2
+  only_dict2 = set(dict2.keys()).difference(set(dict1.keys()))
+  # keys contained in both dictionaries 
+  dict1_dict2 = set(dict1.keys()).intersection(set(dict2.keys()))
+  # merge two dictionaries and sum the values 
+  all_dict = {key: dict1[key] + dict2[key] for key in dict1_dict2}
+  all_dict.update({key: dict1[key] for key in only_dict1})
+  all_dict.update({key: dict2[key] for key in only_dict2})
+  return all_dict
+```
+
+## Recolección y procesamiento de los datos
+
+Procedemos a crear el algoritmo para la extracción de los datos, se imprimen los primeros 300 caracteres de ambos textos.
+
+```{python}
+# modules
+import urllib.request, urllib.parse, urllib.error, re, csv, ssl
+from bs4 import BeautifulSoup
+
+# Ignore SSL certificate errors
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+url = 'https://www.cervantesvirtual.com/obra-visor/el-ingenioso-hidalgo-don-quijote-de-la-mancha--0/html/fef04e52-82b1-11df-acc7-002185ce6064_2.html#I_5_'
+html = urllib.request.urlopen(url, context=ctx).read()
+soup = BeautifulSoup(html, 'html.parser')
+
+# Retrieve all of the anchor tags
+text1 = '' # text1 will be chapter one
+text2 = '' # text2 will be chapter two
+cap_tag = soup('h3')
+text_tag = soup('p')
+# start and end of chapter one and chapter two
+parrafos = ['^En un lugar de la.*', '^Limpias, pues, sus.*',
+            '^Hechas, pues,.*', '^Pusiéronle.*']
+
+# find the text of the chapter one and chapter two and save it in the variables text1 and text2
+find = False
+for t1 in cap_tag:
+  if 'Capítulo I' == t1.getText():
+    text1 += t1.getText() + ' '
+    for t2 in text_tag:
+      if re.search(parrafos[0], t2.getText()):
+        find = True
+
+      if find:
+        text1 += t2.getText() + ' '
+
+      if re.search(parrafos[1], t2.getText()):
+        find = False
+        break
+
+  if 'Capítulo II' == t1.getText():
+    text2 += t1.getText() + ' '
+    for t2 in text_tag:
+      if re.search(parrafos[2], t2.getText()):
+        find = True
+
+      if find:
+        text2 += t2.getText() + ' '
+
+      if re.search(parrafos[3], t2.getText()):
+        break
+    break
+
+print(text1[:300] + '\n'+ '\n' + text2[:300])
+```
+
+Una vez teniendo ambos textos se procede a realizar la tokenización de los mismos, para ello utilizamos la función `my_token`, eliminamos caracteres especiales y palabras tales como conectores o pronombres.
+
+```{python}
+pattern = '[^A-Za-z0-9áéíóú ]'
+remove = ['el', 'él', 'los', 'la', 'del', 'de', 'y', 'que', 'a', 'en', 'su', 'se', 'muy',
+          'con', 'le', 'las', 'un', 'tan', 'por', 'no', 'si', 'al', 'ni', 'o', 'una',
+          'sus', 'me', 'para', 'lo', 'como', 'más', 'sin', 'tal', 'así', 'era', 'mi']
+text1_count, text1_len = my_token(text1, pattern = pattern, remove = remove)
+text2_count, text2_len = my_token(text2, pattern = pattern, remove = remove)
+```
+
+Fusionamos ambos diccionarios, de esta manera obtenemos la frecuencia total de cada palabra en ambos textos.
+
+```{python}
+all_count = all_words(text1_count, text2_count)
+```
+
+Una vez teniendo la frecuencia de cada palabra en ambos textos obtenemos la frecuencia relativa de cada palabra y almacenamos el resultado en una lista, donde cada elemento de la lista será una lista por cada palabra la cual contendrá su frecuencia absoluta y relativa. Se imprimen las 20 palabras finales con mayor frecuencia.
+
+```{python}
+all_df = common_words(dic=all_count, text=text1+text2, n=1000)
+nice_print(all_df[:20])
+```
+
+Por último procedemos a obtener las frecuencias relativas de todas las palabras por separado, tanto en el texto 1 como en el texto 2 y calculamos el valor absoluto de la diferencia entre las frecuencias relativas, el resultado de la diferencia entre las frecuencias relativas se puede interpretar de la siguiente manera:
+
+Consideremos f1(w) y f2(w) la frecuencia relativa de la palabra "w" en el texto 1 y en el texto 2 respectivamente, si \|f1(w) - f2(w)\| ≈ f1(w) la probabilidad de que "w" este solo en el texto 1 es mayor a que este en el texto 2 y viceversa. Se imprimen las cien primeras palabras con mayor diferencia absoluta entre sus frecuencias relativas en el texto 1 y texto 2.
+
+```{python}
+x = [i[0] for i in all_df]
+
+data = []
+for word in x:
+  # get relative frequencies for all words in text1 and text2 
+  text1_rf = round(text1_count.get(word, 0) / text1_len, 4)
+  text2_rf = round(text2_count.get(word, 0) / text2_len, 4)
+  # compute the absolute value from the difference between the relative frequencies 
+  diff = round(abs(text1_rf - text2_rf), 4)
+  # save in the data 
+  data.append([word, text1_rf, text2_rf, diff])
+  
+data.sort(reverse = True, key = lambda x: x[3])
+data.insert(0, ['Word', 'Text1_Rel_Freq', 'Text2_Rel_Freq', 'Rel_Freq_Diff'])
+
+n = 15
+count = 0
+for lst in data[:101]:
+  if count == 0:
+    print('N'.ljust(n), lst[0].ljust(n), str(lst[1]).ljust(n), str(lst[2]).ljust(n), str(lst[3]))
+    count += 1
+    continue
+  print(str(count).ljust(n), lst[0].ljust(n), str(lst[1]).ljust(n), str(lst[2]).ljust(n), str(lst[3]))
+  count += 1
+  
+```
