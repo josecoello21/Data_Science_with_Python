@@ -1,1 +1,7 @@
 # Data_Science_with_Python
+
+Este proyecto forma parte del curso [Ciencia de Datos con Python](http://kuainasi.ciens.ucv.ve/cursos/ciencia-de-datos-con-python/){target="_blank"} dictado por la escuela de computación de la Facultad de Ciencias de la Universidad Central de Venezuela, el cual contiene cinco actividades comunes en la Ciencia de Datos que fueron distribuidas a lo largo de seis semanas, el curso introduce a los estudiantes a la Ciencia de Datos utilizando Python como lenguaje de programación.
+
+El curso va dirigido a estudiantes con conocimientos básicos de Python o antecedentes con algún otro lenguaje de programación y quieran aplicar visualizacion de datos, aprendizaje de máquina, minería de texto, mediante herramientas de Python tales como pandas, matplotlib, scikit-learn y nltk.
+
+Acercamiento a la Ciencias de Datos (semana uno y dos), Modelos de clasificación utilizando aprendizaje de máquina supervizado (semana tres), Modelos de asociación (semana cuatro), Minería de texto implementando técnicas incluidas en el procesamiento de lenguaje natural (NLP) (semana seis), por último un proyecto final donde se ponga en práctica el conocimiento adquirido durante todo el curso utilizando Python como herramienta.
